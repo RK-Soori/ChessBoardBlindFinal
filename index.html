@@ -1,0 +1,1218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Chess System | Pro</title>
+    
+    <!-- LIBRARIES -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.js"></script>
+    
+    <!-- FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <!-- STYLES -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- ICONS -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        :root {
+            --bg-body: #0f172a;
+            --bg-panel: #1e293b;
+            --bg-element: #334155;
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-danger: #ef4444;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+
+            /* DYNAMIC THEME VARIABLES */
+            --board-white: #f0f9ff;
+            --board-black: #475569;
+        }
+
+        /* THEME PRESETS */
+        .theme-green { --board-white: #eeeed2; --board-black: #769656; }
+        .theme-blue { --board-white: #e3f2fd; --board-black: #2196f3; }
+        .theme-brown { --board-white: #f0d9b5; --board-black: #b58863; }
+        .theme-purple { --board-white: #f3e5f5; --board-black: #9c27b0; }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- LAYOUT --- */
+        .dashboard-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            max-width: 1600px;
+            padding: 20px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .board-section {
+            flex: 2;
+            min-width: 300px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .sidebar {
+            flex: 1;
+            min-width: 300px;
+            max-width: 450px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            position: sticky;
+            top: 20px; 
+        }
+
+        /* --- HEADER & TOOLBAR --- */
+        .header-title {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .header-title h1 { 
+            font-size: 1.5rem; 
+            margin: 0; 
+            font-weight: 700; 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            white-space: nowrap;
+        }
+
+        .conn-status {
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-secondary);
+        }
+        
+        .conn-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--accent-danger);
+            box-shadow: 0 0 5px var(--accent-danger);
+            transition: background 0.3s;
+        }
+        .conn-dot.online { background: var(--accent-success); box-shadow: 0 0 5px var(--accent-success); }
+        
+        .toolbar { display: flex; gap: 10px; }
+
+        select.theme-select, select.timer-select {
+            background: var(--bg-element);
+            color: white;
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            outline: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* --- BOARD & EVAL --- */
+        .board-wrapper {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            width: 100%;
+            position: relative;
+        }
+
+        .board-container-inner {
+            width: 100%;
+            max-width: 60vh; 
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+        }
+
+        #boardContainer { width: 100%; height: 100%; }
+
+        .eval-bar-container {
+            width: 20px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column-reverse; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            position: relative;
+            transition: opacity 0.3s, width 0.3s;
+        }
+        .eval-bar-container.hidden { opacity: 0; width: 0; margin: 0; }
+
+        .eval-fill { width: 100%; height: 50%; background: #fff; transition: height 0.5s ease; }
+        .eval-score { position: absolute; top: 5px; left: 0; width: 100%; text-align: center; font-size: 0.6rem; color: #fff; font-weight: bold; text-shadow: 0 1px 2px #000; z-index: 10; }
+        .eval-score.bottom { top: auto; bottom: 5px; color: #333; text-shadow: none; }
+
+        /* --- CLOCK --- */
+        .clock-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            background: var(--bg-body);
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            transition: opacity 0.3s;
+        }
+        .clock-container.disabled { opacity: 0.3; pointer-events: none; }
+
+        .clock-player {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 6px;
+            width: 48%;
+            justify-content: center;
+        }
+        .clock-white { background: #e2e8f0; color: #0f172a; opacity: 0.5; }
+        .clock-black { background: #1e293b; color: #fff; border: 1px solid #334155; opacity: 0.5; }
+        .clock-active { opacity: 1; box-shadow: 0 0 10px var(--accent-primary); border: 2px solid var(--accent-primary); }
+
+        /* --- COLLAPSIBLE SETTINGS PANEL --- */
+        .settings-panel {
+            background: rgba(0, 0, 0, 0.1); 
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden; 
+        }
+        
+        .settings-header {
+            padding: 12px 15px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.03); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .settings-header:hover { background: rgba(255, 255, 255, 0.08); }
+        
+        .settings-content {
+            padding: 0 15px;
+            max-height: 0;
+            opacity: 0;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s;
+            background: transparent;
+        }
+        
+        .settings-content.open {
+            padding: 15px;
+            max-height: 500px;
+            opacity: 1;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .toggle-row:last-child { margin-bottom: 0; }
+
+        select.theme-select, select.timer-select {
+            background: var(--bg-body);
+            color: white;
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            width: 140px;
+        }
+
+        .switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #475569; transition: .4s; border-radius: 22px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-primary); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        /* --- MODAL (Saved Games) --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none; justify-content: center; align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: var(--bg-panel);
+            width: 90%; max-width: 500px;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column;
+            max-height: 80vh;
+        }
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: 700; font-size: 1.1rem;
+        }
+        .modal-body { padding: 0; overflow-y: auto; }
+        
+        .save-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.2s;
+        }
+        .save-item:hover { background: rgba(255,255,255,0.03); }
+        .save-info { display: flex; flex-direction: column; gap: 4px; }
+        .save-date { font-size: 0.8rem; color: var(--text-secondary); }
+        .save-result { font-weight: 600; color: var(--accent-primary); font-size: 0.9rem; }
+        .save-actions { display: flex; gap: 8px; }
+
+        /* --- OTHER WIDGETS --- */
+        .status-card {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid var(--accent-primary);
+            color: var(--accent-primary);
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+        .status-card.hidden { display: none; }
+
+        .terminal-window {
+            background: #000;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid #333;
+        }
+        
+        .terminal-header {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        .terminal-content { color: #10b981; font-size: 0.9rem; word-break: break-all; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+
+        /* SCROLLABLE LOG */
+        .history-container {
+            background: var(--bg-body);
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            background: var(--bg-element);
+            padding: 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .history-list { 
+            overflow-y: auto; 
+            padding: 0; 
+            margin: 0; 
+            list-style: none;
+            max-height: 200px; 
+        }
+        
+        .history-row { display: grid; grid-template-columns: 40px 1fr 1fr; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+        .history-row:nth-child(even) { background: rgba(255,255,255,0.02); }
+        .move-num { color: var(--text-secondary); }
+        .move-white, .move-black { font-weight: 500; font-family: 'JetBrains Mono', monospace;}
+
+        /* CSS Variables Override */
+        .white-1e1d7 { background-color: var(--board-white); color: var(--board-black); }
+        .black-3c85d { background-color: var(--board-black); color: var(--board-white); }
+
+        /* CONTROLS */
+        .btn {
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: white;
+            font-size: 0.9rem;
+        }
+        .btn:hover { filter: brightness(110%); transform: translateY(-1px); }
+        
+        .btn-primary { background: var(--accent-primary); }
+        .btn-secondary { background: var(--bg-element); border: 1px solid var(--border-color); }
+        .btn-success { background: var(--accent-success); color: #000; }
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); border: 1px solid var(--accent-danger); width: 100%; }
+        .btn-icon-only { padding: 8px; }
+
+        .input-area { width: 100%; display: flex; gap: 10px; margin-top: 15px; padding-bottom: 5px; transition: 0.3s; }
+        .input-area.hidden { display: none; }
+
+        input[type="text"] {
+            background: var(--bg-body);
+            border: 1px solid var(--bg-element);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            flex-grow: 1;
+            font-family: 'JetBrains Mono', monospace;
+            outline: none;
+        }
+
+        /* MOBILE TWEAKS */
+        @media (max-width: 900px) {
+            .dashboard-container { flex-direction: column; padding: 10px; }
+            .board-section, .sidebar { width: 100%; min-width: 0; }
+            .sidebar { position: static; }
+            .board-container-inner { width: 100%; max-width: 60vh; aspect-ratio: 1 / 1; }
+            .header-title h1 { font-size: 1.2rem; }
+            .btn { padding: 8px 12px; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body class="theme-slate">
+
+    <!-- LOAD GAME MODAL -->
+    <div id="loadGameModal" class="modal-overlay" onclick="if(event.target === this) closeModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Load Saved Game</span>
+                <button class="btn btn-secondary btn-icon-only" onclick="closeModal()"><i class="ph-bold ph-x"></i></button>
+            </div>
+            <div class="modal-body" id="savedGamesList">
+                <div style="padding:20px; text-align:center; color:#666;">Loading saves...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        
+        <!-- LEFT: BOARD AREA -->
+        <div class="board-section">
+            <div class="header-title">
+                <div class="header-left">
+                    <h1><i class="ph-fill ph-crown"></i> Smart Chess</h1>
+                    <div class="conn-status">
+                        <div id="connDot" class="conn-dot"></div>
+                        <span id="connText">Connecting...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOARD + EVAL -->
+            <div class="board-wrapper">
+                <div id="evalBar" class="eval-bar-container">
+                    <div class="eval-score" id="evalScoreTop"></div>
+                    <div class="eval-fill" id="evalFill"></div>
+                    <div class="eval-score bottom" id="evalScoreBot">0.0</div>
+                </div>
+
+                <div class="board-container-inner">
+                    <div id="boardContainer"></div>
+                </div>
+            </div>
+
+            <!-- INPUT AREA -->
+            <div id="inputArea" class="input-area">
+                <input type="text" id="moveInput" placeholder="Enter move (e.g. e2e4)">
+                <button class="btn btn-primary" onclick="recordMoveFromInput()">
+                    <i class="ph-bold ph-paper-plane-right"></i>
+                </button>
+            </div>
+            <div id="statusMessage" style="color: var(--accent-danger); font-size: 0.9rem; margin-top:5px; min-height: 1.2rem;"></div>
+        </div>
+
+        <!-- RIGHT: SIDEBAR -->
+        <div class="sidebar">
+            
+            <!-- HARDWARE STREAM -->
+            <div class="terminal-window">
+                <div class="terminal-header">
+                    <span>ESP32 Stream</span>
+                    <span style="color: #10b981"><i class="ph-bold ph-plugs-connected"></i> LIVE</span>
+                </div>
+                <div class="terminal-content">
+                    > <span id="hw-input">Signal Waiting...</span><span class="blink">_</span>
+                </div>
+            </div>
+
+            <!-- CLOCK -->
+            <div id="clockContainer" class="clock-container">
+                <div id="clockWhite" class="clock-player clock-white clock-active">
+                    <i class="ph-fill ph-circle"></i> <span id="timeWhite">10:00</span>
+                </div>
+                <div id="clockBlack" class="clock-player clock-black">
+                    <i class="ph-fill ph-circle-half"></i> <span id="timeBlack">10:00</span>
+                </div>
+            </div>
+
+            <div id="turnIndicator" class="status-card">
+                <i class="ph-duotone ph-spinner-gap blink"></i> Loading...
+            </div>
+
+            <!-- BEST MOVE -->
+            <div id="bestMoveDisplay" class="status-card" style="border-color: var(--accent-success); color: var(--accent-success); margin-top: -15px;">
+                <i class="ph-bold ph-lightning"></i> Best: Calculating...
+            </div>
+
+            <!-- COLLAPSIBLE SETTINGS (All In One) -->
+            <div class="settings-panel">
+                <div class="settings-header" onclick="toggleSettingsPanel()">
+                    <span><i class="ph-bold ph-gear"></i> Game Settings</span>
+                    <i id="settingsChevron" class="ph-bold ph-caret-down"></i>
+                </div>
+                <div id="settingsContent" class="settings-content">
+                    
+                    <!-- THEME & FLIP -->
+                    <div class="toggle-row">
+                        <span>Board Theme</span>
+                        <select class="theme-select" onchange="changeTheme(this.value)">
+                            <option value="theme-slate">Slate</option>
+                            <option value="theme-green">Green</option>
+                            <option value="theme-blue">Blue</option>
+                            <option value="theme-brown">Wood</option>
+                            <option value="theme-purple">Purple</option>
+                        </select>
+                    </div>
+                    <div class="toggle-row">
+                        <span>Board Orientation</span>
+                        <button class="btn btn-secondary" style="padding:4px 10px; font-size:0.8rem;" onclick="flipBoard()">
+                            <i class="ph-bold ph-arrows-left-right"></i> Flip
+                        </button>
+                    </div>
+                    
+                    <hr style="border:0; border-top:1px solid var(--border-color); margin: 10px 0;">
+
+                    <!-- FEATURES -->
+                    <div class="toggle-row">
+                        <span>Show Best Move</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleBestMove" onchange="toggleFeature('bestMove')" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <span>Win Probability</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleEval" onchange="toggleFeature('eval')" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <span>Type to Move</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleInput" onchange="toggleFeature('input')" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <!-- TIMER -->
+                    <div class="toggle-row">
+                        <span>Enable Timer</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggleTimer" onchange="toggleFeature('timer')" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row" id="timerDurationRow">
+                        <span>Timer Duration</span>
+                        <select class="timer-select" id="timerSelect" onchange="changeTimerDuration(this.value)">
+                            <option value="300">5 min</option>
+                            <option value="600" selected>10 min</option>
+                            <option value="900">15 min</option>
+                            <option value="1800">30 min</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LOG & SAVE -->
+            <div class="history-container">
+                <div class="history-header">
+                    <span>Move Log</span>
+                    <div style="display:flex; gap:5px;">
+                        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.7rem;" onclick="openLoadGameModal()" title="Load Game">
+                            <i class="ph-bold ph-folder-open"></i> LOAD
+                        </button>
+                        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 0.7rem;" onclick="saveGameDB()" title="Save to Database">
+                            <i class="ph-bold ph-floppy-disk"></i> SAVE
+                        </button>
+                    </div>
+                </div>
+                <div class="history-list" id="moveHistory"></div>
+            </div>
+
+            <button class="btn btn-danger" onclick="startNewGame()">
+                <i class="ph-bold ph-trash"></i> Reset Game
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // *****************************************************************
+        // 1. CONFIGURATION & STATE
+        // *****************************************************************
+        const firebaseConfig = {
+            apiKey: "AIzaSyA7CXPxD3GxvO3Fge6GV-85T_3Wjf840Rw",
+            authDomain: "reattime-dba.firebaseapp.com",
+            databaseURL: "https://reattime-dba-default-rtdb.firebaseio.com",
+            projectId: "reattime-dba",
+            storageBucket: "reattime-dba.firebasestorage.app",
+            messagingSenderId: "526454581643",
+            appId: "1:526454581643:web:a6f8ddeccef69ec42d278e",
+            measurementId: "G-1NCZKB5L3B"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const gameRef = database.ref('chess_game');
+        const savedGamesRef = database.ref('saved_games');
+        const hardwareInputRef = database.ref('chess_input/moveInput');
+        const connectedRef = database.ref('.info/connected');
+
+        let game = new Chess(); 
+        let board = null;        
+        const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        let isFlipped = false;
+        let stockfish = null;
+
+        // Settings State
+        const settings = {
+            bestMove: true,
+            eval: true,
+            input: true,
+            timer: true
+        };
+
+        // Clock State
+        let timerInterval = null;
+        let timerDuration = 600; 
+        let whiteTime = 600; 
+        let blackTime = 600;
+        let isGameActive = false;
+
+        // *****************************************************************
+        // 2. CONNECTIVITY & FEATURES
+        // *****************************************************************
+        
+        connectedRef.on('value', (snap) => {
+            const el = document.getElementById('connText');
+            const dot = document.getElementById('connDot');
+            if (snap.val() === true) {
+                el.innerText = "Connected";
+                el.style.color = "var(--accent-success)";
+                dot.classList.add('online');
+            } else {
+                el.innerText = "Offline";
+                el.style.color = "var(--text-secondary)";
+                dot.classList.remove('online');
+            }
+        });
+
+        function toggleSettingsPanel() {
+            const content = document.getElementById('settingsContent');
+            const icon = document.getElementById('settingsChevron');
+            content.classList.toggle('open');
+            if (content.classList.contains('open')) {
+                icon.classList.replace('ph-caret-down', 'ph-caret-up');
+            } else {
+                icon.classList.replace('ph-caret-up', 'ph-caret-down');
+            }
+        }
+
+        function toggleFeature(feature) {
+            settings[feature] = document.getElementById('toggle' + feature.charAt(0).toUpperCase() + feature.slice(1)).checked;
+            
+            if (feature === 'bestMove') {
+                const el = document.getElementById('bestMoveDisplay');
+                // Use visibility hidden to prevent layout shift
+                if (settings.bestMove) {
+                    el.style.visibility = 'visible';
+                } else {
+                    el.style.visibility = 'hidden';
+                }
+            } else if (feature === 'eval') {
+                const el = document.getElementById('evalBar');
+                if (settings.eval) el.classList.remove('hidden'); else el.classList.add('hidden');
+            } else if (feature === 'input') {
+                const el = document.getElementById('inputArea');
+                if (settings.input) el.classList.remove('hidden'); else el.classList.add('hidden');
+            } else if (feature === 'timer') {
+                const el = document.getElementById('clockContainer');
+                if (settings.timer) {
+                    el.classList.remove('disabled');
+                    updateClockUI();
+                } else {
+                    el.classList.add('disabled');
+                    clearInterval(timerInterval);
+                }
+            }
+            localStorage.setItem('chess_settings', JSON.stringify(settings));
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('chess_settings');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.keys(parsed).forEach(key => {
+                    settings[key] = parsed[key];
+                    const toggle = document.getElementById('toggle' + key.charAt(0).toUpperCase() + key.slice(1));
+                    if(toggle) {
+                        toggle.checked = settings[key];
+                        toggleFeature(key); 
+                    }
+                });
+            }
+        }
+
+        // *****************************************************************
+        // 3. CHESS CLOCK LOGIC
+        // *****************************************************************
+        function changeTimerDuration(val) {
+            timerDuration = parseInt(val);
+            if (!isGameActive) resetClock(); 
+        }
+
+        function startClock() {
+            if (!settings.timer) return;
+            if (timerInterval) clearInterval(timerInterval);
+            isGameActive = true;
+            timerInterval = setInterval(() => {
+                if (!isGameActive) return;
+                if (game.turn() === 'w') { if (whiteTime > 0) whiteTime--; } 
+                else { if (blackTime > 0) blackTime--; }
+                updateClockUI();
+                
+                if (whiteTime === 0 || blackTime === 0) {
+                    isGameActive = false;
+                    clearInterval(timerInterval);
+                    alert("Time's up!");
+                }
+            }, 1000);
+        }
+
+        function updateClockUI() {
+            const fmt = (t) => {
+                const m = Math.floor(t / 60).toString().padStart(2, '0');
+                const s = (t % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            };
+            document.getElementById('timeWhite').innerText = fmt(whiteTime);
+            document.getElementById('timeBlack').innerText = fmt(blackTime);
+
+            const wEl = document.getElementById('clockWhite');
+            const bEl = document.getElementById('clockBlack');
+            
+            if (game.turn() === 'w') {
+                wEl.classList.add('clock-active');
+                bEl.classList.remove('clock-active');
+            } else {
+                bEl.classList.add('clock-active');
+                wEl.classList.remove('clock-active');
+            }
+        }
+
+        function resetClock() {
+            clearInterval(timerInterval);
+            whiteTime = timerDuration;
+            blackTime = timerDuration;
+            isGameActive = false;
+            updateClockUI();
+        }
+
+        // *****************************************************************
+        // 4. SAVE & LOAD SYSTEM
+        // *****************************************************************
+        function saveGameDB() {
+            const pgn = game.pgn();
+            if (!pgn || pgn.trim() === "") { alert("No moves to save!"); return; }
+            
+            const gameData = {
+                pgn: pgn,
+                fen: game.fen(),
+                date: new Date().toLocaleString(),
+                result: game.in_checkmate() ? "Checkmate" : (game.in_draw() ? "Draw" : "In Progress")
+            };
+
+            savedGamesRef.push(gameData)
+                .then(() => alert("Game saved!"))
+                .catch(err => alert("Error: " + err.message));
+        }
+
+        function openLoadGameModal() {
+            const modal = document.getElementById('loadGameModal');
+            const list = document.getElementById('savedGamesList');
+            modal.style.display = 'flex';
+            list.innerHTML = '<div style="padding:20px; text-align:center;">Loading...</div>';
+
+            savedGamesRef.once('value').then(snap => {
+                const games = snap.val();
+                list.innerHTML = '';
+                if (!games) {
+                    list.innerHTML = '<div style="padding:20px; text-align:center;">No saved games found.</div>';
+                    return;
+                }
+                
+                Object.keys(games).reverse().forEach(key => {
+                    const g = games[key];
+                    const item = document.createElement('div');
+                    item.className = 'save-item';
+                    item.innerHTML = `
+                        <div class="save-info">
+                            <span class="save-result">${g.result}</span>
+                            <span class="save-date">${g.date}</span>
+                        </div>
+                        <div class="save-actions">
+                            <button class="btn btn-primary btn-icon-only" onclick="loadGame('${key}')" title="Load This Game"><i class="ph-bold ph-upload-simple"></i></button>
+                            <button class="btn btn-danger btn-icon-only" onclick="deleteGame('${key}')" title="Delete"><i class="ph-bold ph-trash"></i></button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('loadGameModal').style.display = 'none';
+        }
+
+        // IMPROVED LOAD FUNCTION: Fallback to FEN + Logging
+        function loadGame(key) {
+            savedGamesRef.child(key).once('value').then(snap => {
+                const g = snap.val();
+                if(g) {
+                    if(confirm("Load this game? This will overwrite the current board.")) {
+                        
+                        // TRY LOADING PGN
+                        let pgnLoader = new Chess();
+                        // chess.js 0.10.3 load_pgn returns true/false
+                        const success = pgnLoader.load_pgn(g.pgn);
+
+                        if (!success) {
+                            console.warn("PGN Load Failed:", g.pgn);
+                            
+                            // FALLBACK TO FEN
+                            if (g.fen) {
+                                if (confirm("Warning: Save file has a corrupt history (PGN). Restore the Board Position (FEN) only?")) {
+                                    // Set Game to FEN, wipe history
+                                    gameRef.set({
+                                        fen: g.fen,
+                                        moves: [] // Empty history
+                                    }).then(() => {
+                                        closeModal();
+                                        resetClock();
+                                    });
+                                }
+                                return;
+                            } else {
+                                alert("Error: Save file is completely corrupt (No PGN or FEN). Cannot load.");
+                                return;
+                            }
+                        }
+                        
+                        // IF PGN OK: Reconstruct history for DB
+                        let replayer = new Chess();
+                        const history = pgnLoader.history(); 
+                        const dbMoves = [];
+                        
+                        history.forEach(moveSan => {
+                            const result = replayer.move(moveSan);
+                            dbMoves.push({
+                                player: result.color === 'w' ? 'White' : 'Black',
+                                move: result.san,
+                                fen: replayer.fen(),
+                                timestamp: Date.now()
+                            });
+                        });
+
+                        // Push to Active Game
+                        gameRef.set({
+                            fen: replayer.fen(),
+                            moves: dbMoves
+                        }).then(() => {
+                            closeModal();
+                            resetClock(); 
+                        });
+                    }
+                }
+            });
+        }
+
+        function deleteGame(key) {
+            if(confirm("Delete this save permanently?")) {
+                savedGamesRef.child(key).remove().then(() => openLoadGameModal()); 
+            }
+        }
+
+        // *****************************************************************
+        // 5. ENGINE & AUDIO
+        // *****************************************************************
+        function initStockfish() {
+            const stockfishUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.0/stockfish.js';
+            fetch(stockfishUrl).then(r => r.text()).then(txt => {
+                const blob = new Blob([txt], { type: 'application/javascript' });
+                stockfish = new Worker(URL.createObjectURL(blob));
+                stockfish.onmessage = (e) => {
+                    const line = e.data;
+                    if (settings.eval && line.startsWith('info depth') && line.includes('score')) parseStockfishScore(line);
+                    if (settings.bestMove && line.startsWith('bestmove')) {
+                        const move = line.split(' ')[1];
+                        if(move) document.getElementById('bestMoveDisplay').innerHTML = `<i class="ph-bold ph-lightning"></i> Best: ${move}`;
+                    }
+                };
+                stockfish.postMessage('uci');
+            });
+        }
+
+        function evaluatePosition(fen) {
+            if (!stockfish) return;
+            if (settings.bestMove) document.getElementById('bestMoveDisplay').innerHTML = `<i class="ph-duotone ph-spinner-gap blink"></i> Calculating...`;
+            stockfish.postMessage('position fen ' + fen);
+            stockfish.postMessage('go depth 15');
+        }
+
+        function parseStockfishScore(line) {
+            let score = 0.0, text = "0.0";
+            const tokens = line.split(' ');
+            const scoreIdx = tokens.indexOf('score');
+            if (scoreIdx !== -1) {
+                const type = tokens[scoreIdx + 1];
+                const val = parseInt(tokens[scoreIdx + 2]);
+                if (type === 'mate') { score = val > 0 ? 1000 : -1000; text = `M${Math.abs(val)}`; }
+                else { score = val; text = (val / 100).toFixed(1); if (val > 0) text = "+" + text; }
+            }
+            if (game.turn() === 'b') { score = -score; if(text !== "0.0" && !text.includes('M')) { text = (parseFloat(text) * -1).toFixed(1); if (parseFloat(text) > 0) text = "+" + text; } }
+            
+            let percent = 50 + (score / 10);
+            if (percent > 95) percent = 95; if (percent < 5) percent = 5;
+            document.getElementById('evalFill').style.height = `${percent}%`;
+            
+            const top = document.getElementById('evalScoreTop');
+            const bot = document.getElementById('evalScoreBot');
+            if (score >= 0) { top.innerText = text; top.style.color = "#333"; bot.innerText = ""; }
+            else { bot.innerText = text; bot.style.color = "#fff"; top.innerText = ""; }
+        }
+
+        const BASE_DIR = 'Chess_board_audio/';
+        const audioCache = {}; 
+        let isAudioLoaded = false;
+        let lastMoveCount = 0; 
+        const pieceNames = { 'p': 'pawn', 'n': 'knight', 'b': 'bishop', 'r': 'rook', 'q': 'queen', 'k': 'king' };
+
+        function preloadAllAudio() {
+            document.getElementById('turnIndicator').innerHTML = '<i class="ph-duotone ph-download-simple"></i> Loading...';
+            const paths = [];
+            paths.push(`${BASE_DIR}color/white.mp3`, `${BASE_DIR}color/black.mp3`);
+            Object.values(pieceNames).forEach(p => paths.push(`${BASE_DIR}piece/${p}.mp3`));
+            ['a','b','c','d','e','f','g','h'].forEach(l => paths.push(`${BASE_DIR}position/letter/${l}.mp3`));
+            ['1','2','3','4','5','6','7','8'].forEach(n => paths.push(`${BASE_DIR}position/number/${n}.mp3`));
+            paths.push(`${BASE_DIR}action/takes.mp3`, `${BASE_DIR}action/check.mp3`, `${BASE_DIR}action/checkmate.mp3`);
+
+            let loadedCount = 0;
+            paths.forEach(path => {
+                const audio = new Audio();
+                audio.src = path;
+                audio.preload = 'auto';
+                const onDone = () => { loadedCount++; if (loadedCount >= paths.length && !isAudioLoaded) { isAudioLoaded = true; updateTurnIndicator(); } };
+                audio.addEventListener('canplaythrough', onDone, { once: true });
+                audio.onerror = onDone;
+                audioCache[path] = audio;
+            });
+        }
+
+        function playNextSound(soundPaths) {
+            if (soundPaths.length === 0) return;
+            const path = soundPaths.shift();
+            const cachedAudio = audioCache[path];
+            if (cachedAudio) {
+                const soundToPlay = cachedAudio.cloneNode();
+                soundToPlay.playbackRate = 1.2;
+                soundToPlay.onended = () => playNextSound(soundPaths);
+                soundToPlay.play().catch(() => playNextSound(soundPaths));
+            } else {
+                playNextSound(soundPaths);
+            }
+        }
+
+        function speakMove(moveResult) {
+            if (!isAudioLoaded) return;
+            const piece = pieceNames[moveResult.piece];
+            const color = (moveResult.color === 'w') ? 'white' : 'black';
+            const dest = moveResult.to;
+            const seq = [ `${BASE_DIR}color/${color}.mp3`, `${BASE_DIR}piece/${piece}.mp3`, `${BASE_DIR}position/letter/${dest[0]}.mp3`, `${BASE_DIR}position/number/${dest[1]}.mp3` ];
+            if (moveResult.captured) seq.splice(2, 0, `${BASE_DIR}action/takes.mp3`); 
+            if (moveResult.san.includes('#')) seq.push(`${BASE_DIR}action/checkmate.mp3`);
+            else if (moveResult.san.includes('+')) seq.push(`${BASE_DIR}action/check.mp3`);
+            playNextSound(seq);
+        }
+
+        // *****************************************************************
+        // 6. MAIN LOGIC & SYNC
+        // *****************************************************************
+        
+        hardwareInputRef.on('value', (snapshot) => {
+            const moveString = snapshot.val();
+            if (!moveString || moveString.trim() === "") return;
+            const hwDisplay = document.getElementById('hw-input');
+            hwDisplay.innerText = moveString;
+            hwDisplay.style.color = "#34d399";
+            setTimeout(() => hwDisplay.style.color = "#10b981", 300);
+            processMove(moveString);
+            hardwareInputRef.set(""); 
+        });
+
+        function processMove(moveString) {
+            document.getElementById('statusMessage').textContent = ''; 
+            const cleanMove = moveString.replace(/\s+/g, '');
+            let tempGame = new Chess(game.fen());
+            const moveResult = tempGame.move(cleanMove, { sloppy: true });
+
+            if (moveResult === null) {
+                document.getElementById('statusMessage').textContent = `Invalid: "${cleanMove}"`;
+                return null;
+            }
+
+            const newFen = tempGame.fen();
+            const playerColor = (game.turn() === 'w') ? 'White' : 'Black';
+            evaluatePosition(newFen);
+
+            gameRef.once('value').then(snapshot => {
+                const currentData = snapshot.val() || {};
+                let currentMoves = currentData.moves || [];
+                if (typeof currentMoves === 'object') currentMoves = Object.values(currentMoves);
+
+                currentMoves.push({
+                    player: playerColor,
+                    move: moveResult.san,
+                    fen: newFen,
+                    timestamp: Date.now()
+                });
+
+                gameRef.update({ fen: newFen, moves: currentMoves });
+            });
+            return moveResult.san;
+        }
+
+        gameRef.on('value', (snapshot) => {
+            const gameData = snapshot.val();
+            if (!gameData) {
+                game.load(START_FEN);
+                board.position(START_FEN);
+                updateHistoryUI([]);
+                lastMoveCount = 0;
+                updateTurnIndicator();
+                resetClock();
+                return;
+            }
+
+            const serverFen = gameData.fen || START_FEN;
+            const serverMoves = gameData.moves ? Object.values(gameData.moves) : [];
+
+            if (game.fen() === serverFen) {
+                if (serverMoves.length !== lastMoveCount) {
+                    updateHistoryUI(serverMoves);
+                    lastMoveCount = serverMoves.length;
+                }
+                return; 
+            }
+
+            game.load(serverFen);
+            board.position(serverFen, false); 
+            updateTurnIndicator();
+            evaluatePosition(serverFen);
+            
+            // New Move Detected -> Sync Clock & Audio
+            if (serverMoves.length > lastMoveCount) {
+                if (!isGameActive && !game.game_over()) startClock(); 
+                else updateClockUI(); 
+
+                const latestMove = serverMoves[serverMoves.length - 1];
+                const previousFen = serverMoves.length > 1 ? serverMoves[serverMoves.length - 2].fen : START_FEN;
+                const tempGame = new Chess(previousFen);
+                const moveDetails = tempGame.move(latestMove.move);
+                if (moveDetails) speakMove(moveDetails);
+            }
+            
+            if (game.game_over()) { isGameActive = false; clearInterval(timerInterval); }
+
+            lastMoveCount = serverMoves.length;
+            updateHistoryUI(serverMoves);
+        });
+
+        // *****************************************************************
+        // 7. HELPERS
+        // *****************************************************************
+
+        function changeTheme(themeClass) { document.body.className = themeClass; }
+        function flipBoard() { board.flip(); isFlipped = !isFlipped; }
+        function copyPGN() { navigator.clipboard.writeText(game.pgn()).then(() => alert("PGN Copied!")); }
+
+        function updateTurnIndicator() {
+            if (!isAudioLoaded) return; 
+            const el = document.getElementById('turnIndicator');
+            const turn = (game.turn() === 'w') ? 'White' : 'Black';
+            
+            if (game.in_checkmate()) {
+                el.innerHTML = `<i class="ph-fill ph-trophy"></i> Checkmate! ${turn === 'White' ? 'Black' : 'White'} Wins!`;
+                el.style.borderColor = "var(--accent-success)"; el.style.color = "var(--accent-success)";
+            } else if (game.in_draw()) {
+                el.innerHTML = `<i class="ph-fill ph-handshake"></i> Draw`;
+            } else {
+                if (game.turn() === 'w') {
+                    el.innerHTML = `<i class="ph-fill ph-circle"></i> White to Move`;
+                    el.style.background = "rgba(255, 255, 255, 0.1)"; el.style.color = "#fff"; el.style.borderColor = "#fff";
+                } else {
+                    el.innerHTML = `<i class="ph-fill ph-circle-half"></i> Black to Move`;
+                    el.style.background = "rgba(0, 0, 0, 0.3)"; el.style.color = "#94a3b8"; el.style.borderColor = "#94a3b8";
+                }
+            }
+        }
+
+        function updateHistoryUI(movesArray) {
+            const list = document.getElementById('moveHistory');
+            list.innerHTML = ''; 
+            let row = null;
+            let moveNum = 1;
+            movesArray.forEach((moveData, index) => {
+                if (index % 2 === 0) {
+                    row = document.createElement('div');
+                    row.className = 'history-row';
+                    row.innerHTML = `<span class="move-num">${moveNum}.</span><span class="move-white">${moveData.move}</span>`;
+                    list.appendChild(row);
+                    moveNum++;
+                } else {
+                    if (row) {
+                        const blackSpan = document.createElement('span');
+                        blackSpan.className = 'move-black';
+                        blackSpan.innerText = moveData.move;
+                        row.appendChild(blackSpan);
+                    }
+                }
+            });
+            list.scrollTop = list.scrollHeight;
+        }
+
+        function recordMoveFromInput() {
+            const val = document.getElementById('moveInput').value.trim();
+            if(val) { processMove(val); document.getElementById('moveInput').value = ''; }
+        }
+
+        function startNewGame() {
+            if (confirm("Reset Game?")) { gameRef.set(null); lastMoveCount = 0; resetClock(); }
+        }
+
+        function onDragStart (source, piece) {
+            if (game.game_over()) return false;
+            if (piece.search(game.turn() === 'w' ? /^b/ : /^w/) !== -1) return false;
+        }
+        function onDrop (source, target) {
+            let moveString = source + target;
+            const piece = game.get(source);
+            if (piece && piece.type === 'p' && (target[1] === '8' || target[1] === '1')) moveString += 'q'; 
+            const result = processMove(moveString);
+            if (result === null) return 'snapback';
+        }
+        function onSnapEnd () {}
+
+        $(document).ready(function() {
+            const cfg = {
+                draggable: true,
+                position: START_FEN,
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd,
+                dropOffBoard: 'snapback',
+                pieceTheme: 'img/pieces/{piece}.png'
+            };
+            board = Chessboard('boardContainer', cfg);
+            
+            window.addEventListener('resize', () => { board.resize(); });
+            setTimeout(board.resize, 250);
+
+            loadSettings(); 
+            preloadAllAudio();
+            initStockfish();
+        });
+    </script>
+</body>
+</html>
